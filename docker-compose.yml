@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: twid_intellisearch
+    restart: always
+    ports:
+      - "${PORT:-5000}:5000"
+    env_file:
+      - .env
+    environment:
+      # Elasticsearch settings
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - ES_GLOBAL_INDEX=global_intent_training
+      - ES_USER_PREFIX=user_intent_training
+      # Gemini API key - must be provided in .env file
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # Ensure API waits for setup to complete
+      - WAIT_HOSTS=elasticsearch:9200
+      - WAIT_HOSTS_TIMEOUT=300
+      - WAIT_SLEEP_INTERVAL=10
+      - WAIT_HOST_CONNECT_TIMEOUT=30
+    depends_on:
+      - elasticsearch
+      - setup
+    networks:
+      - twid-network
+    volumes:
+      - ./logs:/app/logs
+    command: sh -c "./scripts/wait-for-it.sh elasticsearch:9200 -- gunicorn --bind 0.0.0.0:5000 --workers 4 --threads 2 main:app"
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    container_name: twid_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - twid-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  setup:
+    build: .
+    container_name: twid_elasticsearch_setup
+    environment:
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - ES_GLOBAL_INDEX=global_intent_training
+      - ES_USER_PREFIX=user_intent_training
+      # We don't need the Gemini API key for setup
+      - WAIT_HOSTS=elasticsearch:9200
+      - WAIT_HOSTS_TIMEOUT=300
+      - WAIT_SLEEP_INTERVAL=10
+      - WAIT_HOST_CONNECT_TIMEOUT=30
+    depends_on:
+      - elasticsearch
+    networks:
+      - twid-network
+    command: >
+      sh -c "./scripts/wait-for-it.sh elasticsearch:9200 -- 
+      echo 'Setting up Elasticsearch with global training data...' &&
+      python scripts/setup_elasticsearch.py"
+    restart: "no"
+
+networks:
+  twid-network:
+    driver: bridge
+
+volumes:
+  elasticsearch-data:
+    driver: local

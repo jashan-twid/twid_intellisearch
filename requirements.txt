@@ -1,0 +1,20 @@
+# Web Framework
+flask==2.3.3
+flask-cors==4.0.0
+gunicorn==21.2.0
+
+# Database
+elasticsearch==8.11.0
+
+# AI/ML
+google-generativeai==0.3.1
+
+# Utilities
+python-dotenv==1.0.0
+requests==2.31.0
+pydantic==2.5.0
+python-dateutil==2.8.2
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
