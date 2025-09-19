@@ -6,7 +6,7 @@ services:
     container_name: twid_intellisearch
     restart: always
     ports:
-      - "${PORT:-5000}:5000"
+      - "5002:5000"
     env_file:
       - .env
     environment:
