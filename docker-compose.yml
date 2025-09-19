@@ -29,7 +29,8 @@ services:
       - twid-network
     volumes:
       - ./logs:/app/logs
-    command: sh -c "./scripts/wait-for-it.sh elasticsearch:9200 -- gunicorn --bind 0.0.0.0:5000 --workers 4 --threads 2 main:app"
+    command: >
+      sh -c "./scripts/wait-for-it.sh elasticsearch:9200 -- gunicorn --bind 0.0.0.0:5000 --workers 4 --threads 2 main:app"
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
@@ -69,9 +70,7 @@ services:
     networks:
       - twid-network
     command: >
-      sh -c "./scripts/wait-for-it.sh elasticsearch:9200 -- 
-      echo 'Setting up Elasticsearch with global training data...' &&
-      python scripts/setup_elasticsearch.py"
+      sh -c "./scripts/wait-for-it.sh elasticsearch:9200 -- python scripts/setup_elasticsearch.py"
     restart: "no"
 
 networks:

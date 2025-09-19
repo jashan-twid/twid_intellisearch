@@ -49,6 +49,6 @@ def import_all_user_contacts(contacts_dir, es_manager: ElasticsearchManager):
                         }
                     })
 
-                # Bulk insert contacts
+                # Bulk insert contacts with phone number as document ID to prevent duplicates
                 for contact in contacts:
-                    es_manager.es_client.index(index=index, body=contact)
+                    es_manager.es_client.index(index=index, body=contact, id=contact['number'])
