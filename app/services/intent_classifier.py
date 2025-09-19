@@ -144,6 +144,20 @@ def classify_intent(model, query: str, context: Optional[Dict[str, Any]] = None)
             "error": str(e)
         }
 
+def classify_intent_direct(model, query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Classify user query intent directly without feedback loop
+    
+    Args:
+        model: Gemini model instance
+        query: User query text
+        context: Optional context information
+        
+    Returns:
+        Dict containing intent classification results
+    """
+    return classify_intent(model, query, context)
+
 def classify_intent_with_feedback(model, es_manager, query: str, 
                                 user_id: Optional[str] = None,
                                 context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

@@ -33,7 +33,6 @@ def create_app(config_class=Config):
         es_user_prefix = app.config.get('ES_USER_PREFIX', 'user_intent_training')
         es_user = app.config.get('ELASTICSEARCH_USER')
         es_password = app.config.get('ELASTICSEARCH_PASSWORD')
-        
         # Handle authentication if provided
         if es_user and es_password:
             connection_params = {
@@ -57,6 +56,12 @@ def create_app(config_class=Config):
                 user_index_prefix=es_user_prefix
             )
         logger.info("Connected to Elasticsearch")
+        # Import contacts from .vcf files on startup
+        from app.utils.vcf_importer import import_all_user_contacts
+        import os
+        contacts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../contacts')
+        import_all_user_contacts(contacts_dir, es_manager)
+        logger.info("Imported contacts from .vcf files into Elasticsearch")
     except Exception as e:
         logger.error(f"Elasticsearch initialization error: {str(e)}")
     

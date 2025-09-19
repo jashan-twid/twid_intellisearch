@@ -45,46 +45,76 @@ def classify_intent_route():
     """
     try:
         data = request.get_json()
-        
         if not data:
             return jsonify({"error": "No data provided"}), 400
-        
-        user_id = data.get('user_id')  # Now optional
+
+        user_id = data.get('user_id')
         query = data.get('query')
-        context = data.get('context', {})
-        
         if not query:
             return jsonify({"error": "Missing required field: query"}), 400
-        
-        # Ensure we have our dependencies
-        if not es_manager:
-            return jsonify({"error": "Elasticsearch manager not initialized"}), 500
-            
+
         if not classifier_model:
             return jsonify({"error": "Classifier model not initialized"}), 500
-        
-        # If a user_id is provided, check if we should use a personalized model
-        # For high-volume production, consider caching user-specific models
+
+        # Personalized model logic (unchanged)
         model_to_use = classifier_model
-        if user_id:
-            # Get a user-specific system prompt
+        if user_id and es_manager:
             user_prompt = es_manager.generate_system_prompt(user_id=user_id)
-            
-            # Only create a new model if the user has specific training data
-            # (Otherwise we'll just use the default model)
             if "Examples:" in user_prompt and len(user_prompt) > 1000:
                 model_to_use = get_intent_classifier_model(user_prompt)
                 logger.info(f"Using personalized model for user {user_id}")
-        
-        # Classify intent using Gemini with feedback loop
-        intent_data = classify_intent_with_feedback(
-            model_to_use, 
-            es_manager, 
-            query, 
-            user_id=user_id,
-            context=context
-        )
-        
+
+        from app.services.intent_classifier import classify_intent_direct
+        intent_data = classify_intent_direct(model_to_use, query)
+
+        # PAY_TO_PERSON contact lookup
+        if (
+            intent_data.get("intent") == "PAY_TO_PERSON"
+            and user_id and es_manager
+            and "payee_name" in intent_data.get("extracted_data", {})
+        ):
+            payee_name = intent_data["extracted_data"]["payee_name"]
+            # Search for contacts in user's contacts index
+            try:
+                contact_index = f"user_contacts_{user_id}"
+                if es_manager.es_client.indices.exists(index=contact_index):
+                    search_body = {
+                        "size": 10,  # Get multiple matches
+                        "query": {"match": {"name": payee_name}}
+                    }
+                    resp = es_manager.es_client.search(index=contact_index, body=search_body)
+                    hits = resp.get("hits", {}).get("hits", [])
+                    
+                    # Handle multiple contacts with same name
+                    if len(hits) > 0:
+                        # Add array of all matching contacts with name mapping
+                        contact_list = []
+                        for hit in hits:
+                            contact_list.append({
+                                "name": hit["_source"].get("name"),
+                                "number": hit["_source"].get("number")
+                            })
+                            # Keep contacts list only within extracted_data
+                            intent_data["extracted_data"]["contacts"] = contact_list
+                            if "payee_name" in intent_data["extracted_data"]:
+                                del intent_data["extracted_data"]["payee_name"]
+            except Exception as e:
+                logger.warning(f"Contact lookup failed: {str(e)}")
+
+        # Store high-confidence results if ES is available (no feedback flow)
+        if es_manager and intent_data.get("confidence", 0) > 0.8 and user_id:
+            try:
+                def store_result():
+                    es_manager.save_example(
+                        query=query,
+                        classification=intent_data,
+                        user_id=user_id,
+                        is_global=False
+                    )
+                threading.Thread(target=store_result, daemon=True).start()
+            except Exception as e:
+                logger.warning(f"Failed to store result: {str(e)}")
+
         return jsonify(intent_data)
     
     except Exception as e:
