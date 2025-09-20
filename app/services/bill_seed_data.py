@@ -563,6 +563,13 @@ USER_CREDIT_CARD_DATA = [
     "request": { "unique_bill_id": "94" }
   },
   {
+    "biller_name": "HDFC Credit Card",
+    "subtitle" : "XXXX 0917",
+    "biller_logo": "https://cdn.twidpay.com/co/mobile_app_images/bbps/biller/logo/SBI_Cards.png",
+    "customer_id": "40321617",
+    "request": { "unique_bill_id": "40239" }
+  },
+  {
     "biller_name": "Axis Bank Credit Card",
  "subtitle" : "XXXX 8705",
     "biller_logo": "https://cdn.twidpay.com/co/mobile_app_images/bbps/biller/logo/AXIS_BANK_LTD.png",
@@ -575,12 +582,5 @@ USER_CREDIT_CARD_DATA = [
     "biller_logo": "https://cdn.twidpay.com/co/mobile_app_images/bbps/biller/logo/SBI_Cards.png",
     "customer_id": "40321617",
     "request": { "unique_bill_id": "96" }
-  },
-  {
-    "biller_name": "HDFC Credit Card",
-"subtitle" : "XXXX 0917",
-    "biller_logo": "https://cdn.twidpay.com/co/mobile_app_images/bbps/biller/logo/SBI_Cards.png",
-    "customer_id": "40321617",
-    "request": { "unique_bill_id": "40239" }
   }
 ]
