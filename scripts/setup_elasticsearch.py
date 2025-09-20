@@ -81,7 +81,40 @@ def get_global_training_examples() -> List[Dict[str, Any]]:
             "extracted_data": {
                 "payee_name": "Manager's Manager",
                 "amount": 100,
-                "note": "concert tickets"
+                "note": ""
+            },
+            "data_quality": 10
+        },
+        {
+            "query": "Pay 100 rs to Kushal",
+            "intent": "PAY_TO_PERSON",
+            "confidence": 1.0,
+            "extracted_data": {
+                "payee_name": "Kushal Sir Twid",
+                "amount": 100,
+                "note": ""
+            },
+            "data_quality": 10
+        },
+        {
+            "query": "Pay 100 rupees to Kushal",
+            "intent": "PAY_TO_PERSON",
+            "confidence": 1.0,
+            "extracted_data": {
+                "payee_name": "Kushal Sir Twid",
+                "amount": 100,
+                "note": ""
+            },
+            "data_quality": 10
+        },
+        {
+            "query": "Aman ko 100 rupaye bhejo",
+            "intent": "PAY_TO_PERSON",
+            "confidence": 1.0,
+            "extracted_data": {
+                "payee_name": "Aman Tiwari Twid",
+                "amount": 100,
+                "note": ""
             },
             "data_quality": 10
         },

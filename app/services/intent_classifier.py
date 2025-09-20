@@ -76,19 +76,17 @@ def classify_intent(model, query: str, context: Optional[Dict[str, Any]] = None)
         if context:
             context_str = json.dumps(context)
             user_message = f"{query}\nContext information: {context_str}"
-        
-        # Generate response from Gemini using just the user query
-        if hasattr(model, 'system_prompt') and model.system_prompt:
-            # If system_prompt is available, prepend it to the message
-            # This is a workaround since older versions may not support system_instruction
+
+        # Always include system prompt examples in every request
+        system_prompt = getattr(model, 'system_prompt', None)
+        if system_prompt:
             full_message = f"""
-            System: {model.system_prompt}
-            
+            System: {system_prompt}
+
             User: {user_message}
             """
             response = model.generate_content(full_message)
         else:
-            # Fallback if no system_prompt is available
             response = model.generate_content(user_message)
         
         try:

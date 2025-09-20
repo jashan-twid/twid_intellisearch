@@ -395,8 +395,12 @@ class ElasticsearchManager:
         # Add extraction rules and output format
         system_prompt += """
         For PAY_TO_PERSON, extract:
-        - payee_name: The person's name
-        - amount: The payment amount (in INR)
+        - payee_name:
+            First, try to match the provided payee name against the user’s contact list.
+            Use case-insensitive and AI-based fuzzy matching (≥80% similarity).
+            If there is one clear match (exact or ≥80% similarity), return that single contact as payee_name.
+            If multiple contacts match at a similar confidence level (e.g., common/generic names like "Amit"), return the list of all possible contacts.
+            If no match is found, leave payee_name empty (or omit it).
         - mobile: The person's mobile number (if available)
         - note: Payment reason (if provided)
         - If payee_name is not found in contacts, leave it empty or omit it.
