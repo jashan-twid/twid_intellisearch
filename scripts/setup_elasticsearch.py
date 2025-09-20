@@ -74,7 +74,17 @@ def get_global_training_examples() -> List[Dict[str, Any]]:
             },
             "data_quality": 10
         },
-        
+        {
+            "query": "Pay 100 to Manager's Manager",
+            "intent": "PAY_TO_PERSON",
+            "confidence": 1.0,
+            "extracted_data": {
+                "payee_name": "Manager's Manager",
+                "amount": 100,
+                "note": "concert tickets"
+            },
+            "data_quality": 10
+        },
         # PAY_BILL examples
         {
             "query": "Pay my electricity bill",

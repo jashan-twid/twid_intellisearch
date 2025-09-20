@@ -134,22 +134,35 @@ def classify_intent_route():
             except Exception as e:
                 logger.warning(f"Failed to fetch generic bills: {str(e)}")
             if matched_cards:
-                # Deduplicate matched_cards by unique_bill_id if present, else by biller_name
+                # Only deduplicate by unique_bill_id if present, otherwise include all
                 seen = set()
                 deduped_cards = []
                 for card in matched_cards:
-                    key = card.get("unique_bill_id") or card.get("biller_name")
-                    if key and key not in seen:
-                        seen.add(key)
+                    unique_id = None
+                    # Try to get unique_bill_id from card['request'] if present
+                    if isinstance(card.get("request"), dict):
+                        unique_id = card["request"].get("unique_bill_id")
+                    if unique_id:
+                        if unique_id not in seen:
+                            seen.add(unique_id)
+                            deduped_cards.append(card)
+                    else:
                         deduped_cards.append(card)
                 intent_data["extracted_data"]["additional_data"] = deduped_cards
             else:
-                # Optionally filter generic bills by category_name if provided
+                # If no matched card, filter generic bills by biller_name (ignoring 'bank')
+                filtered_bills = generic_bills
+                if biller_name:
+                    import re
+                    normalized_biller = re.sub(r"\\bbank\\b", "", biller_name, flags=re.IGNORECASE).strip().lower()
+                    filtered_bills = [b for b in generic_bills if (
+                        (b.get("title") and normalized_biller in re.sub(r"\\bbank\\b", "", b["title"], flags=re.IGNORECASE).strip().lower())
+                        or (b.get("biller_name") and normalized_biller in re.sub(r"\\bbank\\b", "", b["biller_name"], flags=re.IGNORECASE).strip().lower())
+                    )]
+                # Optionally filter by category_name as well
                 if category_name:
-                    filtered_bills = [b for b in generic_bills if any(r.get("category_id") == 22 for r in b.get("request", []))] if category_name.upper() == "CREDIT CARD" else generic_bills
-                    intent_data["extracted_data"]["additional_data"] = filtered_bills
-                else:
-                    intent_data["extracted_data"]["additional_data"] = generic_bills
+                    filtered_bills = [b for b in filtered_bills if any(r.get("category_id") == 22 for r in b.get("request", []))] if category_name.upper() == "CREDIT CARD" else filtered_bills
+                intent_data["extracted_data"]["additional_data"] = filtered_bills
 
         # --- PAY_TO_PERSON: Add contacts as before ---
         if (

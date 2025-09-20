@@ -51,7 +51,7 @@ def get_intent_classifier_model(system_prompt=None):
         """
     
     # Create model without system prompt
-    model = GenerativeModel(model_name="gemini-1.5-pro")
+    model = GenerativeModel(model_name="gemini-2.0-flash")
     
     # Store the system prompt in the model object for later use
     model.system_prompt = system_prompt

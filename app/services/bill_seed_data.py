@@ -565,7 +565,7 @@ USER_CREDIT_CARD_DATA = [
   {
     "biller_name": "HDFC Credit Card",
     "subtitle" : "XXXX 0917",
-    "biller_logo": "https://cdn.twidpay.com/co/mobile_app_images/bbps/biller/logo/SBI_Cards.png",
+    "biller_logo": "https://cdn.twidpay.com/co/mobile_app_images/bbps/biller/logo/HDFC_BANK_LTD.png",
     "customer_id": "40321617",
     "request": { "unique_bill_id": "40239" }
   },

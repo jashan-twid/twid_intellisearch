@@ -395,23 +395,11 @@ class ElasticsearchManager:
         # Add extraction rules and output format
         system_prompt += """
         For PAY_TO_PERSON, extract:
-            Follow these rules strictly:
-
-            1. **payee_name**:
-            - VERY IMP: For all scenarios, there can be some mismatches or ambiguities in names.
-            - Compare the given payee name in the query against the user's contacts.
-            - First, check for an exact full match (case-insensitive). If found, return only that contact.
-            - If no exact match:
-                - Use fuzzy/AI similarity. Only consider contacts with ≥80% similarity.
-                - If one contact is clearly the best match, return only that contact.
-                - If multiple contacts have close similarity scores (within 5–10% of each other), return the list of those candidates.
-            - If no contact crosses 80% similarity, return `null` for `payee_name`.
-
-            2. **amount**:
-            - Extract the payment amount in INR (integer).
-
-            3. **note**:
-            - Extract the reason/purpose for payment, if present. Otherwise return `null`.
+        - payee_name: The person's name
+        - amount: The payment amount (in INR)
+        - mobile: The person's mobile number (if available)
+        - note: Payment reason (if provided)
+        - If payee_name is not found in contacts, leave it empty or omit it.
 
         For PAY_BILL, extract:
         - category_name: Type of bill (Out of these: CREDIT CARD, FASTAG, ELECTRICITY, GAS, INSURANCE)
