@@ -155,10 +155,13 @@ def classify_intent_route():
                 if biller_name:
                     import re
                     normalized_biller = re.sub(r"\\bbank\\b", "", biller_name, flags=re.IGNORECASE).strip().lower()
-                    filtered_bills = [b for b in generic_bills if (
-                        (b.get("title") and normalized_biller in re.sub(r"\\bbank\\b", "", b["title"], flags=re.IGNORECASE).strip().lower())
-                        or (b.get("biller_name") and normalized_biller in re.sub(r"\\bbank\\b", "", b["biller_name"], flags=re.IGNORECASE).strip().lower())
-                    )]
+                    filtered_bills = []
+                    for b in generic_bills:
+                        title_match = b.get("title") and normalized_biller in re.sub(r"\\bbank\\b", "", b["title"], flags=re.IGNORECASE).strip().lower()
+                        biller_name_match = b.get("biller_name") and normalized_biller in re.sub(r"\\bbank\\b", "", b["biller_name"], flags=re.IGNORECASE).strip().lower()
+                        if title_match or biller_name_match:
+                            filtered_bills = [b]
+                            break
                 # Optionally filter by category_name as well
                 if category_name:
                     filtered_bills = [b for b in filtered_bills if any(r.get("category_id") == 22 for r in b.get("request", []))] if category_name.upper() == "CREDIT CARD" else filtered_bills
