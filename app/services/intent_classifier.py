@@ -21,7 +21,7 @@ def get_intent_classifier_model(system_prompt=None):
         system_prompt = """
         You are an intent classification system for a financial assistant.
         
-        Classify user queries into these intents:
+        Your task is to classify user queries into these intents:
         - PAY_TO_PERSON: For person-to-person payments
         - PAY_BILL: For bill payments (electricity, water, etc.)
         - CHECK_REWARDS: For reward balance or reward-related queries
@@ -29,21 +29,14 @@ def get_intent_classifier_model(system_prompt=None):
         - OTHER: For any other queries
         
         For PAY_TO_PERSON, extract:
-        - payee_name: The person's name
+        - payee_name: IMPORTANT - Look for a name that matches or is part of any contact name in the provided contact list. If no match, leave payee_name empty or omit it. Only use exact names from the contact list.
         - amount: The payment amount (in INR)
         - note: Payment reason (if provided)
         
         For PAY_BILL, extract:
-        - bill_type: Type of bill (electricity, water, gas, etc.)
-        - biller_name: Name of the biller (if provided)
+        - category_name: Type of bill (Out of these: CREDIT CARD, FASTAG, ELECTRICITY, GAS, INSURANCE)
+        - biller_name: Name of the biller (Like 'Axis', 'HDFC')
         - amount: The payment amount (if specified)
-        
-        For CHECK_REWARDS, extract:
-        - reward_type: Type of rewards (if specified)
-        
-        For TRANSACTION_HISTORY, extract:
-        - time_period: Time period mentioned (today, yesterday, last week, etc.)
-        - transaction_type: Type of transactions (if specified)
         
         Return a JSON object with the following structure:
         {
@@ -58,7 +51,7 @@ def get_intent_classifier_model(system_prompt=None):
         """
     
     # Create model without system prompt
-    model = GenerativeModel(model_name="gemini-2.5-flash")
+    model = GenerativeModel(model_name="gemini-1.5-pro")
     
     # Store the system prompt in the model object for later use
     model.system_prompt = system_prompt

@@ -58,6 +58,26 @@ def classify_intent_route():
 
         # Personalized model logic (unchanged)
         model_to_use = classifier_model
+
+        # --- Custom: Collect contact names for user_id ---
+        contact_names = []
+        if user_id and es_manager:
+            contact_index = f"user_contacts_{user_id}"
+            try:
+                if es_manager.es_client.indices.exists(index=contact_index):
+                    # Get all contact names for the user
+                    resp = es_manager.es_client.search(
+                        index=contact_index,
+                        body={
+                            "size": 1000,
+                            "_source": ["name"],
+                            "query": {"match_all": {}}
+                        }
+                    )
+                    hits = resp.get("hits", {}).get("hits", [])
+                    contact_names = [hit["_source"]["name"] for hit in hits if "name" in hit["_source"]]
+            except Exception as e:
+                logger.warning(f"Failed to fetch contact names: {str(e)}")
         if user_id and es_manager:
             user_prompt = es_manager.generate_system_prompt(user_id=user_id)
             if "Examples:" in user_prompt and len(user_prompt) > 1000:
@@ -65,41 +85,108 @@ def classify_intent_route():
                 logger.info(f"Using personalized model for user {user_id}")
 
         from app.services.intent_classifier import classify_intent_direct
-        intent_data = classify_intent_direct(model_to_use, query)
 
-        # PAY_TO_PERSON contact lookup
+        # --- Custom: For PAY_TO_PERSON, pass contact names to AI ---
+        ai_context = data.get("context", {})
+        if contact_names:
+            ai_context = dict(ai_context)  # copy
+            ai_context["contact_names"] = contact_names
+        logger.debug(f"AI context: {ai_context}")
+        intent_data = classify_intent_direct(model_to_use, query, context=ai_context)
+        logger.info(f"Intent classified: {intent_data}")
+
+        # --- PAY_BILL: Add user-specific bill data in extracted_data.additional_data ---
+        if intent_data.get("intent") == "PAY_BILL" and user_id and es_manager:
+            biller_name = intent_data.get("extracted_data", {}).get("biller_name")
+            category_name = intent_data.get("extracted_data", {}).get("category_name")
+            matched_cards = []
+            if biller_name:
+                # Remove common terms like 'bank' (case-insensitive, word boundary)
+                import re
+                normalized_biller = re.sub(r"\\bbank\\b", "", biller_name, flags=re.IGNORECASE).strip()
+                try:
+                    resp = es_manager.es_client.search(
+                        index="user_credit_cards",
+                        body={
+                            "size": 100,
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"term": {"customer_id": user_id}},
+                                        {"match": {"biller_name": normalized_biller}}
+                                    ]
+                                }
+                            }
+                        }
+                    )
+                    matched_cards = [hit["_source"] for hit in resp["hits"]["hits"]]
+                except Exception as e:
+                    logger.warning(f"Failed to fetch user credit cards: {str(e)}")
+            logger.info(f"Matched cards for user {user_id}: {matched_cards}")
+            # Always fetch generic bills for fallback
+            generic_bills = []
+            try:
+                resp = es_manager.es_client.search(
+                    index="generic_bills",
+                    body={"size": 1000, "query": {"match_all": {}}}
+                )
+                generic_bills = [hit["_source"] for hit in resp["hits"]["hits"]]
+            except Exception as e:
+                logger.warning(f"Failed to fetch generic bills: {str(e)}")
+            if matched_cards:
+                # Deduplicate matched_cards by unique_bill_id if present, else by biller_name
+                seen = set()
+                deduped_cards = []
+                for card in matched_cards:
+                    key = card.get("unique_bill_id") or card.get("biller_name")
+                    if key and key not in seen:
+                        seen.add(key)
+                        deduped_cards.append(card)
+                intent_data["extracted_data"]["additional_data"] = deduped_cards
+            else:
+                # Optionally filter generic bills by category_name if provided
+                if category_name:
+                    filtered_bills = [b for b in generic_bills if any(r.get("category_id") == 22 for r in b.get("request", []))] if category_name.upper() == "CREDIT CARD" else generic_bills
+                    intent_data["extracted_data"]["additional_data"] = filtered_bills
+                else:
+                    intent_data["extracted_data"]["additional_data"] = generic_bills
+
+        # --- PAY_TO_PERSON: Add contacts as before ---
         if (
             intent_data.get("intent") == "PAY_TO_PERSON"
             and user_id and es_manager
             and "payee_name" in intent_data.get("extracted_data", {})
         ):
             payee_name = intent_data["extracted_data"]["payee_name"]
-            # Search for contacts in user's contacts index
-            try:
-                contact_index = f"user_contacts_{user_id}"
-                if es_manager.es_client.indices.exists(index=contact_index):
-                    search_body = {
-                        "size": 10,  # Get multiple matches
-                        "query": {"match": {"name": payee_name}}
-                    }
-                    resp = es_manager.es_client.search(index=contact_index, body=search_body)
-                    hits = resp.get("hits", {}).get("hits", [])
-                    
-                    # Handle multiple contacts with same name
-                    if len(hits) > 0:
-                        # Add array of all matching contacts with name mapping
-                        contact_list = []
-                        for hit in hits:
-                            contact_list.append({
-                                "name": hit["_source"].get("name"),
-                                "number": hit["_source"].get("number")
-                            })
+            # Only search if payee_name is in contact_names
+            if payee_name in contact_names:
+                try:
+                    contact_index = f"user_contacts_{user_id}"
+                    if es_manager.es_client.indices.exists(index=contact_index):
+                        search_body = {
+                            "size": 10,  # Get multiple matches
+                            "query": {"match": {"name": payee_name}}
+                        }
+                        resp = es_manager.es_client.search(index=contact_index, body=search_body)
+                        hits = resp.get("hits", {}).get("hits", [])
+                        # Handle multiple contacts with same name
+                        if len(hits) > 0:
+                            contact_list = []
+                            for hit in hits:
+                                contact_list.append({
+                                    "name": hit["_source"].get("name"),
+                                    "number": hit["_source"].get("number")
+                                })
                             # Keep contacts list only within extracted_data
                             intent_data["extracted_data"]["contacts"] = contact_list
                             if "payee_name" in intent_data["extracted_data"]:
                                 del intent_data["extracted_data"]["payee_name"]
-            except Exception as e:
-                logger.warning(f"Contact lookup failed: {str(e)}")
+                except Exception as e:
+                    logger.warning(f"Contact lookup failed: {str(e)}")
+            else:
+                # If payee_name not in contact_names, show nothing
+                intent_data["extracted_data"].pop("payee_name", None)
+                intent_data["extracted_data"]["contacts"] = []
 
         # Store high-confidence results if ES is available (no feedback flow)
         if es_manager and intent_data.get("confidence", 0) > 0.8 and user_id:

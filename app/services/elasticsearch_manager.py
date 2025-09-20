@@ -40,6 +40,44 @@ def retry_elasticsearch_operation(max_retries=5, initial_backoff=1, max_backoff=
     return decorator
 
 class ElasticsearchManager:
+    @retry_elasticsearch_operation()
+    def create_index_with_mapping(self, index_name: str, mapping: dict):
+        """
+        Create an index with a custom mapping if it doesn't exist
+        """
+        if not self.es_client.indices.exists(index=index_name):
+            self.es_client.indices.create(index=index_name, body=mapping)
+            logger.info(f"Created Elasticsearch index '{index_name}' with custom mapping")
+
+    @retry_elasticsearch_operation()
+    def bulk_insert_generic_bills(self, bills: list, index_name: str = "generic_bills"):
+        """
+        Bulk insert generic bill data into Elasticsearch
+        """
+        if not bills:
+            return
+        bulk_data = []
+        for bill in bills:
+            action = {"index": {"_index": index_name}}
+            bulk_data.append(action)
+            bulk_data.append(bill)
+        self.es_client.bulk(body=bulk_data, refresh=True)
+        logger.info(f"Inserted {len(bills)} generic bills into Elasticsearch index '{index_name}'")
+
+    @retry_elasticsearch_operation()
+    def bulk_insert_user_credit_cards(self, cards: list, index_name: str = "user_credit_cards"):
+        """
+        Bulk insert user-specific credit card data into Elasticsearch
+        """
+        if not cards:
+            return
+        bulk_data = []
+        for card in cards:
+            action = {"index": {"_index": index_name}}
+            bulk_data.append(action)
+            bulk_data.append(card)
+        self.es_client.bulk(body=bulk_data, refresh=True)
+        logger.info(f"Inserted {len(cards)} user credit cards into Elasticsearch index '{index_name}'")
     """Manages training data in Elasticsearch for global and user-specific examples"""
     
     def __init__(self, es_host="localhost", es_port=9200, 
@@ -309,8 +347,6 @@ class ElasticsearchManager:
         Classify user queries into these intents:
         - PAY_TO_PERSON: For person-to-person payments
         - PAY_BILL: For bill payments (electricity, water, etc.)
-        - CHECK_REWARDS: For reward balance or reward-related queries
-        - TRANSACTION_HISTORY: For transaction history or status queries
         - OTHER: For any other queries
         
         Examples:
@@ -359,22 +395,29 @@ class ElasticsearchManager:
         # Add extraction rules and output format
         system_prompt += """
         For PAY_TO_PERSON, extract:
-        - payee_name: The person's name
-        - amount: The payment amount (in INR)
-        - note: Payment reason (if provided)
-        
+            Follow these rules strictly:
+
+            1. **payee_name**:
+            - VERY IMP: For all scenarios, there can be some mismatches or ambiguities in names.
+            - Compare the given payee name in the query against the user's contacts.
+            - First, check for an exact full match (case-insensitive). If found, return only that contact.
+            - If no exact match:
+                - Use fuzzy/AI similarity. Only consider contacts with ≥80% similarity.
+                - If one contact is clearly the best match, return only that contact.
+                - If multiple contacts have close similarity scores (within 5–10% of each other), return the list of those candidates.
+            - If no contact crosses 80% similarity, return `null` for `payee_name`.
+
+            2. **amount**:
+            - Extract the payment amount in INR (integer).
+
+            3. **note**:
+            - Extract the reason/purpose for payment, if present. Otherwise return `null`.
+
         For PAY_BILL, extract:
-        - bill_type: Type of bill (electricity, water, gas, etc.)
-        - biller_name: Name of the biller (if provided)
+        - category_name: Type of bill (Out of these: CREDIT CARD, FASTAG, ELECTRICITY, GAS, INSURANCE)
+        - biller_name: Name of the biller (Like 'Axis', 'HDFC')
         - amount: The payment amount (if specified)
-        
-        For CHECK_REWARDS, extract:
-        - reward_type: Type of rewards (if specified)
-        
-        For TRANSACTION_HISTORY, extract:
-        - time_period: Time period mentioned (today, yesterday, last week, etc.)
-        - transaction_type: Type of transactions (if specified)
-        
+
         Return a JSON object with the following structure:
         {
             "intent": "INTENT_TYPE",
@@ -383,7 +426,7 @@ class ElasticsearchManager:
                 // Relevant extracted fields based on intent type
             }
         }
-        
+
         Return raw JSON only with NO markdown formatting, NO code blocks, and NO additional text.
         """
         
